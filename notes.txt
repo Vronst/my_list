@@ -1,0 +1,59 @@
+Tables are in creation order: foreign keys need their target table to exist.
+Every id: BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY.
+Columns are NOT NULL unless marked nullable.
+
+users
+- id
+- name
+- mail (TEXT, unique index on lower(mail))
+- password_hash (TEXT, Argon2id result, never the password)
+
+lists
+- id
+- owner_id -> users
+- name (TEXT)
+- index: owner_id
+
+items
+- id
+- list_id -> lists (ON DELETE CASCADE)
+- name (TEXT)
+- description (TEXT, nullable)
+- category (TEXT, nullable)
+- price (NUMERIC, nullable)
+- amount (NUMERIC)
+- unit (TEXT)
+- url (TEXT, nullable, only http/https)
+- photo (TEXT, nullable, file path, not the image bytes)
+- bought (BOOLEAN, default false)
+- unique index: list_id, lower(trim(name)), unit (also serves lookups by list_id)
+
+allowed_users
+- list_id -> lists (ON DELETE CASCADE)
+- user_id -> users (ON DELETE CASCADE)
+- access (TEXT, CHECK: 'view' or 'edit')
+- primary key: list_id, user_id
+- index: user_id
+
+recipes
+- id
+- owner_id -> users
+- name (TEXT)
+- steps (TEXT, nullable)
+- index: owner_id
+
+recipe_ingredients
+- id
+- recipe_id -> recipes (ON DELETE CASCADE)
+- name (TEXT)
+- amount (NUMERIC)
+- unit (TEXT)
+- index: recipe_id
+
+Adding a recipe to a list (the list is chosen then, so it isn't stored):
+- for each ingredient: INSERT into items, ON CONFLICT DO UPDATE
+- same name and unit, not bought: add the amounts (1 + 2 = 3)
+- same name and unit, already bought: amount = recipe amount, bought = false
+- different name or unit: new row
+
+Every item query must filter on list_id after checking the user can access that list.
