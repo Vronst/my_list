@@ -1,28 +1,39 @@
 services:
 
   db:
-    image: postgres
-    restart: always
-    # set shared memory limit when using docker compose
+    image: postgres:19
+    restart: unless-stopped
     shm_size: 128mb
-    # or set shared memory limit when deploy via swarm stack
-    #volumes:
-    #  - type: tmpfs
-    #    target: /dev/shm
-    #    tmpfs:
-    #      size: 134217728 # 128*2^20 bytes = 128Mb
     environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password.txt
+      # A secret is mounted at /run/secrets/<secret name>, not at its file name.
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
       POSTGRES_USER: vronst
       POSTGRES_DB: my_list
-
+    secrets:
+      - db_password
+    ports:
+      # 127.0.0.1 only: reachable from this machine (sqlx, cargo run), not the network.
+      - 127.0.0.1:5432:5432
+    volumes:
+      # Postgres 18+ images keep data under /var/lib/postgresql/<major>/docker.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vronst -d my_list"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   adminer:
     image: adminer
-    restart: always
+    restart: unless-stopped
     ports:
-      - 8080:8080
+      - 127.0.0.1:8080:8080
+    depends_on:
+      - db
 
 secrets:
   db_password:
-    file = ./secrets/db_password.txt
+    file: ./secrets/db_password.txt
+
+volumes:
+  pgdata:
